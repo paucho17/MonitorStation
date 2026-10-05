@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav>
+    <div class="nav-left">
+        <a href="index.html">Hogar</a>
+        <a href="historico.html">Historico</a>
+    </div>
+    <div class="nav-right">
+        <span class="user-welcome">Hola, <strong id="userDisplay">Usuario</strong></span>
+        <a href="#" id="logoutLink" class="logout-link">Salir</a>
+    </div>
+</nav>
+
+<header>IoT Environmental Dashboard - Mangrove Telemetry</header>
+
+<div class="container">
+
+    <div class="card">
+        <div class="title">Air Temperature</div>
+        <div class="value" id="temp">--</div>
+        <div class="unit">°C</div>
+    </div>
+
+    <div class="card">
+        <div class="title">Air Humidity</div>
+        <div class="value" id="hum">--</div>
+        <div class="unit">%</div>
+    </div>
+
+    <div class="card">
+        <div class="title">Soil Moisture</div>
+        <div class="value" id="soil">--</div>
+        <div class="unit">%</div>
+    </div>
+
+    <div class="card">
+        <div class="title">pH Level</div>
+        <div class="value" id="ph">--</div>
+        <div class="unit">pH</div>
+    </div>
+
+    <div class="card">
+        <div class="title">Turbidity</div>
+        <div class="value" id="turb">--</div>
+        <div class="unit">NTU</div>
+    </div>
+
+    <div class="card">
+        <div class="title">Corrected PPM</div>
+        <div class="value" id="correctedppm">--</div>
+        <div class="unit">ppm</div>
+    </div>
+
+</div>
+
+<script src="auth.js"></script>
+<script src="dashboard.js"></script>
+<!-- Tidio Chatbot Integration -->
+<script src="//code.tidio.co/3xadxyjd9ldonlawf6r4d6mfc20xmbzk.js" async></script>
+
+</body>
+</html>
