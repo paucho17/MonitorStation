@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IoT-Mangrove - Dashboard</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <header class="barra">
+    <h1>IoT-Mangrove</h1>
+    <a href="dashboard.html" class="activo">Dashboard</a>
+    <a href="historial.html">Historial</a>
+    <span id="usuario-actual"></span>
+    <button id="salir" type="button">Salir</button>
+  </header>
+  <main>
+    <div class="resumen">
+      <div class="tarjeta"><div class="etiqueta">Última lectura</div><div class="valor" id="r-fecha" style="font-size:1.1rem">-</div><div class="pie" id="r-nodo"></div></div>
+      <div class="tarjeta"><div class="etiqueta">Posición GPS</div><div class="valor" id="r-gps" style="font-size:1.1rem">-</div><div class="pie" id="r-sat"></div></div>
+      <div class="tarjeta"><div class="etiqueta">Alertas pendientes</div><div class="valor" id="r-alertas">-</div><div class="pie">sin atender</div></div>
+    </div>
+    <h2>Último valor de cada variable</h2>
+    <div class="rejilla" id="rejilla"><p class="vacío">Cargando...</p></div>
+  </main>
+  <script src="app.js"></script>
+  <script>
+    if (exigirSesion()) { cargar(); setInterval(cargar, 15000); }
+    async function cargar() {
+      try {
+        const d = await api("/api/dashboard");
+        const u = d.ultima_lectura;
+        document.getElementById("r-fecha").textContent = u ? formatoFecha(u.fecha_recepcion) : "Sin datos";
+        document.getElementById("r-nodo").textContent = u ? "Nodo " + u.nodo + (u.rssi != null ? " | RSSI " + u.rssi + " dBm" : "") + (u.snr != null ? " | SNR " + u.snr + " dB" : "") : "";
+        const p = d.ultima_posicion;
+        document.getElementById("r-gps").textContent = p ? p.latitud.toFixed(5) + ", " + p.longitud.toFixed(5) : "Sin GPS";
+        document.getElementById("r-sat").textContent = p ? (p.satelites != null ? p.satelites + " satelites | " : "") + "nodo " + p.nodo : "";
+        document.getElementById("r-alertas").textContent = d.alertas_pendientes;
+        const caja = document.getElementById("rejilla");
+        if (!d.variables.length) { caja.innerHTML = '<p class="vacío">Aun no hay mediciones.</p>'; return; }
+        caja.innerHTML = d.variables.map(v => {
+          const clase = v.alerta_nivel === "CRITICO" ? "crit" : v.alerta_nivel === "ADVERTENCIA" ? "adv" : "ok";
+          return '<div class="tarjeta ' + clase + '"><div class="etiqueta">' + escapar(v.variable_nombre) + ' | ' + escapar(v.nodo) + '</div>' +
+            '<div class="valor">' + Number(v.valor).toFixed(2) + ' <span class="unidad">' + escapar(v.unidad) + '</span></div>' +
+            '<div class="pie">' + formatoFecha(v.fecha_recepcion) + (v.alerta_nivel ? ' <span class="insignia ' + clase + '">' + v.alerta_nivel + '</span>' : '') + '</div></div>';
+        }).join("");
+      } catch (err) { document.getElementById("rejilla").innerHTML = '<p class="vacío">' + escapar(err.message) + '</p>'; }
+    }
+  </script>
+</body>
+</html>

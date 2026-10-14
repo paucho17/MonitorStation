@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IoT-Mangrove - Acceso</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <div class="caja-login">
+    <div class="tarjeta">
+      <h1 style="margin-top:0">IoT-Mangrove</h1>
+      <p style="color:var(--suave);margin-top:-6px">Monitoreo ambiental de manglares</p>
+      <div class="pestanas">
+        <button type="button" id="tab-login" class="activo">Iniciar sesión</button>
+        <button type="button" id="tab-registro">Registrarse</button>
+      </div>
+      <form id="form-login">
+        <label>Usuario <input name="username" required autocomplete="username"></label>
+        <label>Contraseña <input name="password" type="password" required autocomplete="current-password"></label>
+        <button class="primario" type="submit">Entrar</button>
+      </form>
+      <form id="form-registro" hidden>
+        <label>Usuario (mínimo 3 caracteres) <input name="username" required minlength="3" maxlength="50"></label>
+        <label>Correo (opcional) <input name="email" type="email" maxlength="100"></label>
+        <label>Contraseña (mínimo 6 caracteres) <input name="password" type="password" required minlength="6" maxlength="72" autocomplete="new-password"></label>
+        <button class="primario" type="submit">Crear cuenta</button>
+      </form>
+      <p id="mensaje" class="mensaje"></p>
+    </div>
+  </div>
+  <script src="app.js"></script>
+  <script>
+    const msg = document.getElementById("mensaje");
+    const fl = document.getElementById("form-login"), fr = document.getElementById("form-registro");
+    function pestana(login) {
+      fl.hidden = !login; fr.hidden = login; msg.textContent = "";
+      document.getElementById("tab-login").classList.toggle("activo", login);
+      document.getElementById("tab-registro").classList.toggle("activo", !login);
+    }
+    document.getElementById("tab-login").onclick = () => pestana(true);
+    document.getElementById("tab-registro").onclick = () => pestana(false);
+    fl.addEventListener("submit", async (e) => {
+      e.preventDefault(); msg.className = "mensaje";
+      try {
+        const datos = await api("/api/auth/login", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(fl))) });
+        Sesion.guardar(datos); window.location.href = "dashboard.html";
+      } catch (err) { msg.className = "mensaje error"; msg.textContent = err.message; }
+    });
+    fr.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const cuerpo = Object.fromEntries(new FormData(fr));
+      if (!cuerpo.email) delete cuerpo.email;
+      try {
+        await api("/api/auth/registro", { method: "POST", body: JSON.stringify(cuerpo) });
+        pestana(true); msg.className = "mensaje ok"; msg.textContent = "Cuenta creada. Ya puede iniciar sesión.";
+      } catch (err) { msg.className = "mensaje error"; msg.textContent = err.message; }
+    });
+    if (Sesion.token()) window.location.href = "dashboard.html";
+  </script>
+</body>
+</html>

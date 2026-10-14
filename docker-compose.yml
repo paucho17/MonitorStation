@@ -1,0 +1,119 @@
+# IoT-Mangrove: despliegue completo en un VPS
+#
+# Servicios:
+#   postgres  : base de datos principal (PostgreSQL 15)
+#   mysql     : base de datos auxiliar (MySQL 8)
+#   api       : API principal (FastAPI)            -> /api/*, /docs y front-end
+#   api_aux   : API auxiliar (Express + MySQL)     -> /aux/*
+#   nginx     : proxy inverso con HTTPS (Let's Encrypt)
+#
+# Solo Nginx publica puertos (80 y 443). Las bases de datos y las APIs
+# quedan en la red interna de Docker. Las credenciales se leen del
+# archivo .env (copiar .env.example y completarlo).
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: iot_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Los scripts se ejecutan en orden alfabetico solo la primera vez
+      - ./db/principal:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [interna]
+
+  mysql:
+    image: mysql:8.0
+    container_name: iot_mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/auxiliar:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks: [interna]
+
+  api:
+    build: ./api_principal
+    container_name: iot_fastapi
+    restart: always
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_SSLMODE: disable
+      DB_POOL_SIZE: "10"
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-60}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      GATEWAY_CODE: ${GATEWAY_CODE:-0XDD}
+      GATEWAY_API_KEY: ${GATEWAY_API_KEY}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [interna]
+
+  api_aux:
+    build: ./api_auxiliar
+    container_name: iot_express
+    restart: always
+    environment:
+      PORT: "3000"
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${MYSQL_DATABASE}
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks: [interna]
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: iot_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/iotmangrove.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      - api
+      - api_aux
+    networks: [interna]
+
+networks:
+  interna:
+
+volumes:
+  postgres_data:
+  mysql_data:

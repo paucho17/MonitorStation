@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IoT-Mangrove - Historial</title>
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <header class="barra">
+    <h1>IoT-Mangrove</h1>
+    <a href="dashboard.html">Dashboard</a>
+    <a href="historial.html" class="activo">Historial</a>
+    <span id="usuario-actual"></span>
+    <button id="salir" type="button">Salir</button>
+  </header>
+  <main>
+    <form class="filtros" id="filtros">
+      <label>Nodo <select name="nodo"><option value="">Todos</option></select></label>
+      <label>Variable <select name="variable"><option value="">Todas</option></select></label>
+      <label>Desde <input type="datetime-local" name="desde"></label>
+      <label>Hasta <input type="datetime-local" name="hasta"></label>
+      <button class="primario" type="submit">Filtrar</button>
+    </form>
+    <div class="tabla-caja">
+      <table>
+        <thead><tr><th>Fecha</th><th>Nodo</th><th>Variable</th><th>Valor</th><th>RSSI</th><th>SNR</th></tr></thead>
+        <tbody id="cuerpo"><tr><td colspan="6" class="vacío">Cargando...</td></tr></tbody>
+      </table>
+    </div>
+    <p class="pie" id="total" style="color:var(--suave);font-size:.85rem"></p>
+  </main>
+  <script src="app.js"></script>
+  <script>
+    const form = document.getElementById("filtros");
+    async function catalogos() {
+      try {
+        const [nodos, vars] = await Promise.all([api("/api/nodos?limite=500"), api("/api/variables?limite=500")]);
+        nodos.datos.forEach(n => form.nodo.add(new Option(n.codigo + (n.nombre ? " - " + n.nombre : ""), n.codigo)));
+        vars.datos.forEach(v => form.variable.add(new Option(v.nombre, v.codigo)));
+      } catch (e) { /* los filtros quedan en "Todos" */ }
+    }
+    async function buscar() {
+      const p = new URLSearchParams();
+      for (const [k, v] of new FormData(form)) {
+        if (!v) continue;
+        p.set(k, (k === "desde" || k === "hasta") ? new Date(v).toISOString() : v);
+      }
+      p.set("limite", "300");
+      const cuerpo = document.getElementById("cuerpo");
+      try {
+        const r = await api("/api/historial?" + p.toString());
+        document.getElementById("total").textContent = r.total + " registros (se muestran " + r.datos.length + ")";
+        cuerpo.innerHTML = r.datos.length ? r.datos.map(f => "<tr><td>" + formatoFecha(f.fecha_recepcion) + "</td><td>" + escapar(f.nodo) + "</td><td>" +
+          escapar(f.variable_nombre) + "</td><td>" + Number(f.valor).toFixed(2) + " " + escapar(f.unidad) + "</td><td>" + escapar(f.rssi) + "</td><td>" + escapar(f.snr) + "</td></tr>").join("")
+          : '<tr><td colspan="6" class="vacío">Sin resultados</td></tr>';
+      } catch (err) { cuerpo.innerHTML = '<tr><td colspan="6" class="vacío">' + escapar(err.message) + "</td></tr>"; }
+    }
+    form.addEventListener("submit", (e) => { e.preventDefault(); buscar(); });
+    if (exigirSesion()) catalogos().then(buscar);
+  </script>
+</body>
+</html>
