@@ -22,7 +22,7 @@ const PALABRAS_VACIAS = new Set([
 ]);
 const PUNTAJE_MINIMO = 2;
 const MENSAJE_SIN_RESPUESTA =
-  'No encontre información sobre esa pregunta. Puede consultar por pH, turbidez, TDS, temperatura, humedad, presion, eCO2, TVOC, humedad del suelo o alertas.';
+  'No encontre información sobre esa pregunta. Puede consultar por las variables medidas (pH, turbidez, TDS, temperatura, humedad, CO2, particulas, suelo), por el vivero, por el riego (modos, valvulas, tanque, bateria) o por las alertas.';
 
 /** Minusculas, sin tildes ni signos, sin palabras vacias y con plural simplificado. */
 function tokenizar(texto) {

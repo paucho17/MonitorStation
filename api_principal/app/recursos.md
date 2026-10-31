@@ -23,3 +23,6 @@ Catalogo declarativo de los 14 recursos que reciben CRUD generico de `crud.py`. 
 - `usuarios` aplica un gancho que cifra la contrasena con bcrypt antes de guardar y nunca la devuelve.
 - `gateways` no esta aqui: su alta genera la clave de API y se define en `routers/gateways.py`, que tambien declara su CRUD generico.
 - Para agregar un recurso nuevo basta con anadir una entrada y un modulo en `db/principal/02_semillas.sql`.
+
+## Ambitos y alias
+`ambitos` (dominios de monitoreo) y `alias-variables` (nombres de variable aceptados en la ingesta) son recursos CRUD; `nodos` incluye `ambito_id`.

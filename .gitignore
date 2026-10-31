@@ -3,3 +3,4 @@ certbot/
 __pycache__/
 node_modules/
 *.pyc
+firmware/**/secrets.h

@@ -19,7 +19,7 @@ from typing import Callable
 import bcrypt
 import jwt
 import psycopg
-from fastapi import Depends, HTTPException
+from fastapi import Depends, Header, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from psycopg import sql
 
@@ -170,3 +170,23 @@ def requerir_permiso(modulo: str, accion: str) -> Callable:
         return usuario
 
     return dependencia
+
+
+def gateway_autenticado(
+    x_api_key: str | None = Header(default=None),
+    db: psycopg.Connection = Depends(get_db),
+) -> dict:
+    """Dependencia: autentica a un gateway o controlador por la cabecera X-API-Key.
+
+    Devuelve la fila del gateway (id, codigo, zona_id). Se usa en la ingesta
+    de tramas y en el intercambio de ordenes con el controlador de riego.
+    """
+    if not x_api_key:
+        raise HTTPException(401, "Cabecera X-API-Key requerida")
+    gateway = db.execute(
+        "SELECT id, codigo, zona_id FROM gateway WHERE api_key_hash = %s AND estado = TRUE",
+        (hash_clave_api(x_api_key),),
+    ).fetchone()
+    if gateway is None:
+        raise HTTPException(401, "Clave de API inválida")
+    return gateway

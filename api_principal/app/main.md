@@ -22,3 +22,5 @@ Punto de entrada de la API principal (FastAPI).
 
 ## Dependencias
 `config.py`, `db.py`, `security.py`, `recursos.py`, `crud.py` y los routers de `routers/`.
+
+Los routers y recursos se publican recorriendo `app.registro.MODULOS`.

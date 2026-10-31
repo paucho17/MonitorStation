@@ -16,8 +16,8 @@ from app import security
 from app.config import cargar
 from app.crud import crear_router
 from app.db import abrir_pool, cerrar_pool, get_db, obtener_pool
-from app.recursos import RECURSOS
-from app.routers import auth, datos, gateways, ingesta
+from app.registro import MODULOS
+from app.routers import auth
 from app.security import generar_hash, hash_clave_api
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -76,7 +76,7 @@ async def ciclo_de_vida(_app: FastAPI):
 app = FastAPI(
     title="IoT-Mangrove API",
     description="Monitoreo telemetrico de manglares: nodos LoRa, gateway y backend en la nube.",
-    version="2.0.0",
+    version="2.1.0",
     lifespan=ciclo_de_vida,
 )
 
@@ -95,12 +95,12 @@ def salud(db=Depends(get_db)):
     return {"estado": "ok"}
 
 
-app.include_router(auth.router)
-app.include_router(ingesta.router)
-app.include_router(datos.router)
-app.include_router(gateways.router)
-for recurso in RECURSOS:
-    app.include_router(crear_router(recurso))
+for modulo in MODULOS:
+    for router in modulo.routers:
+        app.include_router(router)
+    for recurso in modulo.recursos:
+        app.include_router(crear_router(recurso))
+    log.info("Modulo cargado: %s", modulo.nombre)
 
 # El front-end se monta al final para no tapar las rutas /api/*
 if DIRECTORIO_ESTATICO.is_dir():

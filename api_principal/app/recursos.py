@@ -89,8 +89,18 @@ RECURSOS: list[Recurso] = [
             Campo("zona_id", int),
             Campo("gateway_id", int),
             Campo("hardware", str, max_len=100),
+            Campo("ambito_id", int, requerido=True),
         ],
-        filtros=["tipo_nodo_id", "zona_id", "gateway_id"],
+        filtros=["tipo_nodo_id", "zona_id", "gateway_id", "ambito_id"],
+    ),
+    Recurso(
+        ruta="ambitos", tabla="ambito", modulo="ambitos",
+        campos=[
+            Campo("codigo", str, requerido=True, max_len=20, mayusculas=True),
+            Campo("nombre", str, requerido=True, max_len=100),
+            Campo("descripcion", str, max_len=255),
+            Campo("orden", int),
+        ],
     ),
     # ----------------------------- Catalogos -----------------------------
     Recurso(
@@ -112,6 +122,14 @@ RECURSOS: list[Recurso] = [
             Campo("rango_max", float),
         ],
         filtros=["tipo_nodo_id", "unidad_id"],
+    ),
+    Recurso(
+        ruta="alias-variables", tabla="variable_alias", modulo="alias-variables",
+        campos=[
+            Campo("alias", str, requerido=True, max_len=40),
+            Campo("variable_id", int, requerido=True),
+        ],
+        filtros=["variable_id"],
     ),
     Recurso(
         ruta="sensores", tabla="sensor", modulo="sensores",

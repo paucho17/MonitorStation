@@ -1,0 +1,100 @@
+-- =====================================================================
+-- IoT-Mangrove: base auxiliar, migracion 02
+-- Conocimiento del chatbot para el vivero, el sistema de riego y los
+-- nuevos sensores. Es idempotente (INSERT IGNORE): se puede ejecutar
+-- varias veces con scripts/migrar_db.sh. Se usa la misma estructura de
+-- tablas de 01_esquema_y_datos.sql.
+-- =====================================================================
+
+SET NAMES utf8mb4;
+
+INSERT IGNORE INTO categoria_conocimiento (nombre, descripcion) VALUES
+    ('Vivero', 'Estaciones fijas del vivero de manglar y el huerto de hongos'),
+    ('Riego', 'Bomba, valvulas, modos de riego y energia solar');
+
+INSERT IGNORE INTO referencia_variable
+    (codigo_variable, nombre, unidad, descripcion, uso, rango_normal_min, rango_normal_max, fuente) VALUES
+    ('water_temperature', 'Temperatura del agua', 'C',
+     'Temperatura del agua medida con una sonda sumergible DS18B20.',
+     'Afecta el oxigeno disuelto y la salud de peces y crustaceos; tambien sirve para compensar las lecturas de TDS.',
+     20.00, 32.00, 'Umbral de referencia del proyecto; ajustable'),
+    ('soil_temperature', 'Temperatura del suelo', 'C',
+     'Temperatura del sustrato medida con una sonda DS18B20 enterrada.',
+     'Influye en la germinacion de propagulos y en la actividad del micelio de los hongos.',
+     15.00, 35.00, 'Umbral de referencia del proyecto; ajustable'),
+    ('co2', 'CO2', 'ppm',
+     'Dioxido de carbono medido directamente con el sensor fotoacustico SCD41.',
+     'A diferencia del eCO2 estimado, mide el gas real; es clave en el huerto de hongos y en espacios cerrados.',
+     400.00, 1000.00, 'Umbral de referencia del proyecto; ajustable'),
+    ('pm2_5', 'PM2.5', 'ug/m3',
+     'Material particulado fino de menos de 2.5 micras (sensor PMS5003).',
+     'Indica contaminacion por humo, quemas o polvo fino que puede afectar la salud.',
+     0.00, 35.00, 'Umbral de referencia del proyecto; ajustable'),
+    ('pm10', 'PM10', 'ug/m3',
+     'Material particulado de menos de 10 micras (sensor PMS5003).',
+     'Refleja polvo y particulas gruesas en el aire.',
+     0.00, 50.00, 'Umbral de referencia del proyecto; ajustable'),
+    ('tank_level', 'Nivel del tanque', '%',
+     'Porcentaje de llenado del tanque que alimenta el riego.',
+     'Con menos de 10 % el sistema bloquea el riego para proteger la bomba.',
+     25.00, 100.00, 'Umbral de referencia del proyecto; ajustable'),
+    ('battery_percent', 'Carga de bateria', '%',
+     'Estado de carga de la bateria del sistema solar.',
+     'Una carga baja puede impedir que la bomba y las valvulas operen.',
+     30.00, 100.00, 'Umbral de referencia del proyecto; ajustable');
+
+INSERT IGNORE INTO conocimiento_chatbot (categoria_id, referencia_variable_id, pregunta, respuesta, palabras_clave) VALUES
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Riego'), NULL,
+     '¿Cómo funciona el riego automático?',
+     'El controlador central lee la humedad del suelo del vivero. Si baja del minimo de la zona abre las valvulas y riega hasta alcanzar el maximo, respetando un tiempo maximo por riego, un descanso entre riegos y un limite diario.',
+     'riego automatico auto humedad valvulas cuando riega funciona'),
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Riego'), NULL,
+     '¿Qué modos de riego existen?',
+     'Hay cuatro modos por zona: Automático (decide por la humedad), Programado (por horarios), Manual (el operador abre y cierra desde el panel) y Apagado (todo cerrado).',
+     'modos modo manual programado automatico apagado riego'),
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Riego'), NULL,
+     '¿Puedo abrir una válvula desde la página?',
+     'Si tu usuario tiene permiso, cambia la zona a modo Manual y usa los botones Abrir y Cerrar del panel de riego. La orden se envia al controlador, que la ejecuta y confirma; la posicion se actualiza en el siguiente reporte.',
+     'abrir cerrar valvula pagina manual panel orden'),
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Riego'), NULL,
+     '¿Qué protecciones tiene el riego?',
+     'Tiempo maximo por riego, descanso entre riegos, limite diario por zona y bloqueo si el tanque esta casi vacio. Las ordenes no entregadas en 10 minutos se cancelan para no abrir una valvula tarde.',
+     'proteccion seguridad limite maximo descanso tanque bloqueo riego'),
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Riego'),
+     (SELECT id FROM referencia_variable WHERE codigo_variable='tank_level'),
+     '¿Qué pasa si el tanque está bajo?',
+     'Con menos de 25 % hay una advertencia y con menos de 10 % una alerta crítica: el riego se bloquea para no dañar la bomba.',
+     'tanque nivel bajo vacio agua bomba'),
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Riego'),
+     (SELECT id FROM referencia_variable WHERE codigo_variable='battery_percent'),
+     '¿Cómo se alimenta el riego?',
+     'Con un panel solar y una bateria. Si la carga baja de 30 % hay advertencia y bajo 15 % alerta crítica.',
+     'bateria solar energia panel carga alimenta'),
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Vivero'), NULL,
+     '¿Qué es el vivero?',
+     'Es la zona fija de la universidad donde se propagan plántulas de mangle y funciona un huerto de hongos. Sus estaciones usan placas LoRa32 fijas y alimentan las decisiones de riego.',
+     'vivero plantulas mangle hongos huerto estacion universidad'),
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Sistema'), NULL,
+     '¿Qué diferencia hay entre manglar, vivero y riego en el dashboard?',
+     'Son ámbitos de monitoreo. Manglar muestra los nodos móviles de campo, Vivero las estaciones fijas, y Riego el tanque, la bomba y las válvulas. Puedes elegir uno, varios o todos con los botones de arriba.',
+     'ambito ambitos manglar vivero riego dashboard seleccionar filtrar mostrar'),
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Ambiente'),
+     (SELECT id FROM referencia_variable WHERE codigo_variable='co2'),
+     '¿Qué mide el sensor de CO2?',
+     'El SCD41 mide el dióxido de carbono real en ppm. Sobre 1000 ppm hay advertencia y sobre 2000 ppm alerta crítica.',
+     'co2 dioxido carbono scd41 sensor aire ppm'),
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Ambiente'),
+     (SELECT id FROM referencia_variable WHERE codigo_variable='pm2_5'),
+     '¿Qué son PM2.5 y PM10?',
+     'Son partículas en suspensión medidas en µg/m³. PM2.5 tiene advertencia sobre 35 y crítica sobre 75; PM10 sobre 50 y 150.',
+     'pm25 pm10 particulas polvo humo material particulado pms5003'),
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Calidad del agua'),
+     (SELECT id FROM referencia_variable WHERE codigo_variable='water_temperature'),
+     '¿Qué temperatura debe tener el agua?',
+     'El rango de referencia es de 20 a 32 °C; fuera de él hay advertencia y bajo 15 o sobre 35 °C alerta crítica.',
+     'temperatura agua ds18b20 sumergible grados'),
+    ((SELECT id FROM categoria_conocimiento WHERE nombre='Suelo'),
+     (SELECT id FROM referencia_variable WHERE codigo_variable='soil_temperature'),
+     '¿Qué temperatura debe tener el suelo?',
+     'El rango de referencia es de 15 a 35 °C; sobre 42 o bajo 10 °C se emite una alerta crítica.',
+     'temperatura suelo sustrato tierra ds18b20 grados');

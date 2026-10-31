@@ -13,42 +13,28 @@ Formato esperado (compatible con el firmware existente):
       "type": "WATER",
       "rssi": -95, "snr": 7.5,
       "latitude": 4.1234, "longitude": -76.1234, "satellites": 8,   (opcional)
+      "scope": "VIVERO",                                            (opcional)
       "data": {"ph": 7.2, "turbidity": 20.5}
     }
+
+Los nombres de las variables dentro de "data" se resuelven con la tabla
+variable_alias, de modo que agregar un sensor nuevo no exige cambiar este
+modulo. "scope" indica el ambito (MANGLAR, VIVERO, RIEGO...) y solo se usa
+al registrar automaticamente un nodo nuevo; despues manda el valor guardado.
 """
 
 import logging
 from typing import Any, Optional
 
 import psycopg
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.db import get_db, traducir_error
-from app.security import hash_clave_api
+from app.security import gateway_autenticado
 
 log = logging.getLogger("iotmangrove.ingesta")
 router = APIRouter(prefix="/api", tags=["ingesta"])
-
-# Nombre en la trama -> codigo de la tabla variable. Las claves no
-# reconocidas (por ejemplo las del MQ-135 retirado) se ignoran.
-ALIAS_VARIABLES = {
-    "ph": "ph",
-    "turbidity": "turbidity",
-    "tds": "tds",
-    "waterLevel": "water_level",
-    "water_level": "water_level",
-    "temperature": "temperature",
-    "humidity": "humidity",
-    "pressure": "pressure",
-    "eco2": "eco2",
-    "eCO2": "eco2",
-    "tvoc": "tvoc",
-    "TVOC": "tvoc",
-    "soilHumidity": "soil_humidity",
-    "soil_humidity": "soil_humidity",
-}
-
 
 class IngestaIn(BaseModel):
     gateway: Optional[str] = Field(default=None, max_length=20)
@@ -59,6 +45,7 @@ class IngestaIn(BaseModel):
     latitude: Optional[float] = Field(default=None, ge=-90, le=90)
     longitude: Optional[float] = Field(default=None, ge=-180, le=180)
     satellites: Optional[int] = Field(default=None, ge=0, le=64)
+    scope: Optional[str] = Field(default=None, max_length=20)
     data: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -83,19 +70,9 @@ def _fuera_de_rango(valor: float, minimo: Optional[float], maximo: Optional[floa
 @router.post("/ingest", status_code=201, summary="Recibir una trama del gateway (X-API-Key)")
 def ingesta(
     trama: IngestaIn,
-    x_api_key: Optional[str] = Header(default=None),
+    gateway: dict = Depends(gateway_autenticado),
     db: psycopg.Connection = Depends(get_db),
 ):
-    if not x_api_key:
-        raise HTTPException(401, "Cabecera X-API-Key requerida")
-
-    gateway = db.execute(
-        "SELECT id, codigo, zona_id FROM gateway WHERE api_key_hash = %s AND estado = TRUE",
-        (hash_clave_api(x_api_key),),
-    ).fetchone()
-    if gateway is None:
-        raise HTTPException(401, "Clave de API inválida")
-
     codigo_nodo = trama.nodeID.strip().upper()
     tipo = trama.type.strip().upper()
     ignoradas: list[str] = []
@@ -109,11 +86,19 @@ def ingesta(
             ).fetchone()
             if tipo_nodo is None:
                 raise HTTPException(400, f"Tipo de nodo desconocido: {tipo}")
+            # El ambito de un nodo nuevo sale de "scope"; por defecto, MANGLAR
+            codigo_ambito = (trama.scope or "MANGLAR").strip().upper()
+            ambito = db.execute(
+                "SELECT id FROM ambito WHERE codigo = %s AND estado = TRUE", (codigo_ambito,)
+            ).fetchone()
+            if ambito is None:
+                raise HTTPException(400, f"Ambito desconocido: {codigo_ambito}")
             # Alta automatica del nodo en el primer mensaje recibido
             nodo = db.execute(
-                """INSERT INTO nodo (codigo, nombre, tipo_nodo_id, zona_id, gateway_id)
-                   VALUES (%s, %s, %s, %s, %s) RETURNING id, estado""",
-                (codigo_nodo, f"Nodo {codigo_nodo}", tipo_nodo["id"], gateway["zona_id"], gateway["id"]),
+                """INSERT INTO nodo (codigo, nombre, tipo_nodo_id, zona_id, gateway_id, ambito_id)
+                   VALUES (%s, %s, %s, %s, %s, %s) RETURNING id, estado""",
+                (codigo_nodo, f"Nodo {codigo_nodo}", tipo_nodo["id"], gateway["zona_id"],
+                 gateway["id"], ambito["id"]),
             ).fetchone()
             log.info("Nodo nuevo registrado automaticamente: %s (%s)", codigo_nodo, tipo)
         elif not nodo["estado"]:
@@ -127,9 +112,18 @@ def ingesta(
             ).fetchall()
         }
 
+        alias = {
+            f["alias"]: f["codigo"]
+            for f in db.execute(
+                """SELECT a.alias, v.codigo FROM variable_alias a
+                   JOIN variable v ON v.id = a.variable_id
+                   WHERE a.estado = TRUE AND v.estado = TRUE"""
+            ).fetchall()
+        }
+
         valores: dict[str, float] = {}
         for clave, bruto in trama.data.items():
-            codigo = ALIAS_VARIABLES.get(clave)
+            codigo = alias.get(clave)
             if codigo is None or codigo not in variables:
                 ignoradas.append(clave)
                 continue

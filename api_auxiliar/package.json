@@ -4,7 +4,8 @@
   "description": "API auxiliar (Express + MySQL): base de conocimiento del chatbot de IoT-Mangrove",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "test": "node --test tests/chatbot.test.js"
   },
   "engines": { "node": ">=18" },
   "dependencies": {

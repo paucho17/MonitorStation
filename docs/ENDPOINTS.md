@@ -16,9 +16,21 @@ La documentación interactiva de la API principal esta en `/docs` (Swagger). Las
 | Método | Ruta | Acceso | Descripción |
 |---|---|---|---|
 | POST | /api/ingest | Cabecera X-API-Key | Recibe una trama del gateway |
-| GET | /api/dashboard | JWT, módulo `dashboard` | Último valor de cada variable por nodo, GPS y alertas pendientes |
-| GET | /api/historial | JWT, módulo `historial` | Historial. Filtros: `nodo`, `variable`, `desde`, `hasta`, `limite`, `desplazamiento` |
+| GET | /api/dashboard | JWT, módulo `dashboard` | Último valor de cada variable por nodo, GPS y alertas pendientes. Filtro `ambito=VIVERO,RIEGO` |
+| GET | /api/historial | JWT, módulo `historial` | Historial. Filtros: `nodo`, `variable`, `ambito`, `desde`, `hasta`, `limite`, `desplazamiento` |
 | GET | /api/salud | Público | Estado del servicio y de la base de datos |
+
+### Riego
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | /api/riego/estado | JWT, módulo `riego` (leer) | Zonas con modo, humedad actual, regado hoy, actuadores y últimos riegos |
+| PUT | /api/riego/zonas/{id}/modo | JWT, `riego` (editar) | Modo `AUTO`, `PROGRAMADO`, `MANUAL` o `APAGADO` |
+| POST | /api/riego/comandos | JWT, `riego` (crear) | Orden manual `ABRIR` o `CERRAR` con duración opcional |
+| GET | /api/riego/comandos/{id} | JWT, `riego` (leer) | Seguimiento de una orden |
+| GET | /api/riego/central/pendientes | X-API-Key | El controlador central descarga reglas, programas y órdenes pendientes |
+| POST | /api/riego/central/reporte | X-API-Key | El controlador reporta posiciones, resultados de órdenes y riegos hechos |
+
+Detalle y reglas de seguridad en `api_principal/app/routers/riego.md`.
 
 ### CRUD (todos con eliminación lógica)
 Cada recurso ofrece: `GET /api/<r>` (lista), `GET /api/<r>/{id}`, `POST /api/<r>`, `PUT /api/<r>/{id}`, `DELETE /api/<r>/{id}` (pone `estado = false`) y `POST /api/<r>/{id}/restaurar`. La lista acepta `incluir_inactivos=true`, `limite` y `desplazamiento`.
@@ -32,7 +44,14 @@ Cada recurso ofrece: `GET /api/<r>` (lista), `GET /api/<r>/{id}`, `POST /api/<r>
 | zonas | zonas | - | |
 | gateways | gateways | zona_id | `POST` devuelve la clave de API una sola vez; `POST /api/gateways/{id}/rotar-clave` genera otra |
 | tipos-nodo | tipos-nodo | - | |
-| nodos | nodos | tipo_nodo_id, zona_id, gateway_id | |
+| ambitos | ambitos | - | Dominios de monitoreo (MANGLAR, VIVERO, RIEGO...) |
+| alias-variables | alias-variables | variable_id | Nombres de variable aceptados en la ingesta |
+| zonas-riego | zonas-riego | ambito_id, modo | El modo se cambia en `/api/riego/zonas/{id}/modo` |
+| actuadores | actuadores | zona_riego_id, tipo, posicion | Válvulas y bomba |
+| programas-riego | programas-riego | zona_riego_id, habilitado | Horarios de riego |
+| comandos-riego | comandos-riego | actuador_id, situacion, origen | Solo lectura |
+| eventos-riego | eventos-riego | actuador_id, zona_riego_id, origen | Solo lectura |
+| nodos | nodos | tipo_nodo_id, zona_id, gateway_id, ambito_id | |
 | unidades | unidades | - | |
 | variables | variables | tipo_nodo_id, unidad_id | |
 | sensores | sensores | nodo_id, variable_id | |
@@ -68,6 +87,9 @@ Lectura pública en categorías, referencias y conocimiento. Toda escritura exig
 | GET / DELETE | /aux/consultas | JWT (borrar: admin) | Bitacora de consultas |
 
 Los CRUD tienen las mismas operaciones y la misma eliminación lógica que la API principal (`DELETE` y `/{id}/restaurar`).
+
+### Chatbot en el front-end
+Las páginas del panel incluyen `chatbot.js`, un widget propio que llama a `POST /aux/chatbot/consultar` (Nginx lo enruta a la API auxiliar) y muestra la respuesta. No depende de Tidio. Para mantener Tidio, ver el apartado siguiente.
 
 ### Conexión con Tidio
 El endpoint `POST /aux/chatbot/consultar` esta pensado para que el chatbot lo invoque como webhook o petición HTTP, enviando el texto del visitante en `q` y mostrando el campo `respuesta` del JSON. Verifique en su plan de Tidio que la automatizacion permite llamadas HTTP; si no, el mismo contenido puede cargarse manualmente en Tidio a partir de `GET /aux/conocimiento`.

@@ -15,20 +15,58 @@
     <button id="salir" type="button">Salir</button>
   </header>
   <main>
+    <div class="chips" id="chips-ambito" role="group" aria-label="Ambitos a mostrar"></div>
     <div class="resumen">
       <div class="tarjeta"><div class="etiqueta">Última lectura</div><div class="valor" id="r-fecha" style="font-size:1.1rem">-</div><div class="pie" id="r-nodo"></div></div>
       <div class="tarjeta"><div class="etiqueta">Posición GPS</div><div class="valor" id="r-gps" style="font-size:1.1rem">-</div><div class="pie" id="r-sat"></div></div>
       <div class="tarjeta"><div class="etiqueta">Alertas pendientes</div><div class="valor" id="r-alertas">-</div><div class="pie">sin atender</div></div>
     </div>
-    <h2>Último valor de cada variable</h2>
-    <div class="rejilla" id="rejilla"><p class="vacío">Cargando...</p></div>
+    <div id="secciones"><p class="vacio">Cargando...</p></div>
   </main>
   <script src="app.js"></script>
+  <script src="riego.js"></script>
+  <script src="chatbot.js"></script>
   <script>
-    if (exigirSesion()) { cargar(); setInterval(cargar, 15000); }
+    /* Panel de control del riego: se acopla a un ambito visible (ver ambitoDelPanel).
+       Los demas ambitos muestran solo sus variables. */
+    const PANEL_RIEGO = { titulo: "Control del riego", pintar: pintarPanelRiego, instalar: instalarMandoRiego };
+    /* El vivero opera con el sistema de riego (sensores y valvulas son del riego): el panel
+       de control se muestra en la seccion "Sistema de riego" y, si esta no se ve, en "Vivero". */
+    function ambitoDelPanel(visibles) {
+      const codigos = visibles.map(a => a.codigo);
+      return codigos.includes("RIEGO") ? "RIEGO" : codigos.includes("VIVERO") ? "VIVERO" : null;
+    }
+
+    let selector = null;
+    const cajaSecciones = document.getElementById("secciones");
+
+    function tarjetaVariable(v) {
+      const clase = v.alerta_nivel === "CRITICO" ? "crit" : v.alerta_nivel === "ADVERTENCIA" ? "adv" : "ok";
+      return '<div class="tarjeta ' + clase + '"><div class="etiqueta">' + escapar(v.variable_nombre) + ' | ' + escapar(v.nodo) + '</div>' +
+        '<div class="valor">' + Number(v.valor).toFixed(2) + ' <span class="unidad">' + escapar(v.unidad) + '</span></div>' +
+        '<div class="pie">' + formatoFecha(v.fecha_recepcion) + (v.alerta_nivel ? ' <span class="insignia ' + clase + '">' + v.alerta_nivel + '</span>' : '') + '</div></div>';
+    }
+
+    /* Una seccion por ambito visible; se crean una vez y se reutilizan en cada refresco */
+    function asegurarSecciones(visibles) {
+      const host = ambitoDelPanel(visibles);
+      const claves = visibles.map(a => a.codigo).join(",") + "|" + host;
+      if (cajaSecciones.dataset.claves === claves) return;
+      cajaSecciones.dataset.claves = claves;
+      cajaSecciones.innerHTML = visibles.map(a =>
+        '<section data-ambito="' + escapar(a.codigo) + '"><h2>' + escapar(a.nombre) + '</h2>' +
+        '<div class="rejilla" data-variables></div>' +
+        (a.codigo === host ? '<h2 class="subtitulo">' + escapar(PANEL_RIEGO.titulo) + '</h2><div data-panel><div class="mensaje" role="status"></div></div>' : "") +
+        "</section>").join("");
+      if (host) PANEL_RIEGO.instalar(cajaSecciones.querySelector("[data-panel]"));
+    }
+
     async function cargar() {
+      if (!selector) return;
+      const elegidos = selector.seleccion();
+      const visibles = selector.catalogo.filter(a => !elegidos.length || elegidos.includes(a.codigo));
       try {
-        const d = await api("/api/dashboard");
+        const d = await api("/api/dashboard" + (elegidos.length ? "?ambito=" + elegidos.join(",") : ""));
         const u = d.ultima_lectura;
         document.getElementById("r-fecha").textContent = u ? formatoFecha(u.fecha_recepcion) : "Sin datos";
         document.getElementById("r-nodo").textContent = u ? "Nodo " + u.nodo + (u.rssi != null ? " | RSSI " + u.rssi + " dBm" : "") + (u.snr != null ? " | SNR " + u.snr + " dB" : "") : "";
@@ -36,15 +74,24 @@
         document.getElementById("r-gps").textContent = p ? p.latitud.toFixed(5) + ", " + p.longitud.toFixed(5) : "Sin GPS";
         document.getElementById("r-sat").textContent = p ? (p.satelites != null ? p.satelites + " satelites | " : "") + "nodo " + p.nodo : "";
         document.getElementById("r-alertas").textContent = d.alertas_pendientes;
-        const caja = document.getElementById("rejilla");
-        if (!d.variables.length) { caja.innerHTML = '<p class="vacío">Aun no hay mediciones.</p>'; return; }
-        caja.innerHTML = d.variables.map(v => {
-          const clase = v.alerta_nivel === "CRITICO" ? "crit" : v.alerta_nivel === "ADVERTENCIA" ? "adv" : "ok";
-          return '<div class="tarjeta ' + clase + '"><div class="etiqueta">' + escapar(v.variable_nombre) + ' | ' + escapar(v.nodo) + '</div>' +
-            '<div class="valor">' + Number(v.valor).toFixed(2) + ' <span class="unidad">' + escapar(v.unidad) + '</span></div>' +
-            '<div class="pie">' + formatoFecha(v.fecha_recepcion) + (v.alerta_nivel ? ' <span class="insignia ' + clase + '">' + v.alerta_nivel + '</span>' : '') + '</div></div>';
-        }).join("");
-      } catch (err) { document.getElementById("rejilla").innerHTML = '<p class="vacío">' + escapar(err.message) + '</p>'; }
+        asegurarSecciones(visibles);
+        for (const a of visibles) {
+          const seccion = cajaSecciones.querySelector('section[data-ambito="' + a.codigo + '"]');
+          const vars = d.variables.filter(v => v.ambito === a.codigo);
+          seccion.querySelector("[data-variables]").innerHTML = vars.length ? vars.map(tarjetaVariable).join("") : '<p class="vacio">Aun no hay mediciones en este ambito.</p>';
+          if (a.codigo === ambitoDelPanel(visibles)) {
+            await PANEL_RIEGO.pintar(seccion.querySelector("[data-panel]")).catch(err => {
+              seccion.querySelector("[data-panel]").insertAdjacentHTML("beforeend", '<p class="vacio">' + escapar(err.message) + "</p>");
+            });
+          }
+        }
+      } catch (err) { cajaSecciones.innerHTML = '<p class="vacio">' + escapar(err.message) + "</p>"; cajaSecciones.dataset.claves = ""; }
+    }
+
+    if (exigirSesion()) {
+      selectorAmbitos(document.getElementById("chips-ambito"), cargar)
+        .then(s => { selector = s; cargar(); setInterval(cargar, 15000); })
+        .catch(err => { cajaSecciones.innerHTML = '<p class="vacio">' + escapar(err.message) + "</p>"; });
     }
   </script>
 </body>

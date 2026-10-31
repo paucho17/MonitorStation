@@ -15,3 +15,6 @@ Consulta de datos para el panel web. Prefijo `/api`, etiqueta `datos`.
 | `desde`, `hasta` | Rango de fechas. |
 | `limite` | Cantidad maxima de filas (1 a 2000, por defecto 200). |
 | `desplazamiento` | Filas a omitir (paginacion). |
+
+## Filtro por ambito
+`/api/dashboard` y `/api/historial` aceptan `ambito=VIVERO,RIEGO` (codigos de la tabla `ambito`, separados por coma). Sin el parametro, o con `todos`, no se filtra. Cada fila devuelve su `ambito`.

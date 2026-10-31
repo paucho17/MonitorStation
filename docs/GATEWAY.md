@@ -13,16 +13,23 @@ El gateway debe enviar cada trama con `POST /api/ingest`, con la cabecera `X-API
   "latitude": 4.1234,
   "longitude": -76.1234,
   "satellites": 8,
+  "scope": "MANGLAR",
   "data": { "ph": 7.2, "turbidity": 20.5, "tds": 350 }
 }
 ```
-Las claves de `data` por tipo de nodo:
+`scope` es el ámbito del nodo (`MANGLAR`, `VIVERO`, `RIEGO`...). Solo se usa al registrar un nodo nuevo; si falta, se asume `MANGLAR`.
+
+Las claves de `data` ya no están escritas en el código: se resuelven con la tabla `variable_alias` (recurso `/api/alias-variables`). Claves de fábrica:
 
 | type | Claves aceptadas en `data` |
 |---|---|
-| WATER | `ph`, `turbidity`, `tds`, `waterLevel` (0 o 1) |
-| AMB | `temperature`, `humidity`, `pressure`, `eco2`, `tvoc` |
-| SOIL | `soilHumidity` |
+| WATER | `ph`, `turbidity`, `tds`, `waterLevel` (0 o 1), `waterTemp` |
+| AMB | `temperature`, `humidity`, `pressure`, `co2`, `pm1`, `pm25`, `pm10` (y `eco2`, `tvoc` del SGP30 anterior) |
+| SOIL | `soilHumidity`, `soilTemp` |
+| RIEGO | `tankLevel`, `pump`, `flow`, `vbat`, `bat` |
+| cualquiera | `bat` (porcentaje de batería) |
+
+Para agregar un sensor nuevo: crear la variable (`/api/variables`), sus alias (`/api/alias-variables`) y, si aplica, sus umbrales (`/api/umbrales`). No se cambia código.
 
 - Las claves no reconocidas (por ejemplo las del MQ-135 retirado) se ignoran y se informan en la respuesta (`ignoradas`).
 - Los valores fuera del rango físico de la variable (por ejemplo pH 40) se descartan (`descartadas`).
