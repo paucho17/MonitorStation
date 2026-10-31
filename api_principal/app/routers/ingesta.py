@@ -27,10 +27,11 @@ import logging
 from typing import Any, Optional
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.db import get_db, traducir_error
+from app.notificaciones import notificar_alertas
 from app.security import gateway_autenticado
 
 log = logging.getLogger("iotmangrove.ingesta")
@@ -70,6 +71,7 @@ def _fuera_de_rango(valor: float, minimo: Optional[float], maximo: Optional[floa
 @router.post("/ingest", status_code=201, summary="Recibir una trama del gateway (X-API-Key)")
 def ingesta(
     trama: IngestaIn,
+    segundo_plano: BackgroundTasks,
     gateway: dict = Depends(gateway_autenticado),
     db: psycopg.Connection = Depends(get_db),
 ):
@@ -148,6 +150,7 @@ def ingesta(
         ).fetchone()
 
         alertas: list[dict] = []
+        alerta_ids: list[int] = []
         for codigo, valor in valores.items():
             medicion = db.execute(
                 "INSERT INTO medicion (lectura_id, variable_id, valor) VALUES (%s, %s, %s) RETURNING id",
@@ -164,10 +167,11 @@ def ingesta(
             for u in umbrales:
                 if _fuera_de_rango(valor, u["minimo"], u["maximo"]):
                     texto = f"{codigo}={valor}: {u['mensaje'] or 'fuera de umbral'}"
-                    db.execute(
-                        "INSERT INTO alerta (medicion_id, umbral_id, mensaje) VALUES (%s, %s, %s)",
+                    nueva = db.execute(
+                        "INSERT INTO alerta (medicion_id, umbral_id, mensaje) VALUES (%s, %s, %s) RETURNING id",
                         (medicion["id"], u["id"], texto),
-                    )
+                    ).fetchone()
+                    alerta_ids.append(nueva["id"])
                     alertas.append({"variable": codigo, "nivel": u["nivel"], "valor": valor})
                     break
 
@@ -176,6 +180,10 @@ def ingesta(
     except psycopg.Error as exc:
         db.rollback()
         raise traducir_error(exc)
+
+    # Los avisos salen despues de confirmar la ingesta y sin bloquear al gateway
+    if alerta_ids:
+        segundo_plano.add_task(notificar_alertas, alerta_ids)
 
     return {
         "success": True,

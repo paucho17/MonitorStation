@@ -37,7 +37,8 @@ def cliente():
         c.execute(f"DROP DATABASE IF EXISTS {BASE}")
         c.execute(f"CREATE DATABASE {BASE}")
     with _conectar(BASE) as c:
-        for nombre in ("01_esquema.sql", "02_semillas.sql", "03_datos_demo.sql", "04_ambitos_y_riego.sql"):
+        for nombre in ("01_esquema.sql", "02_semillas.sql", "03_datos_demo.sql", "04_ambitos_y_riego.sql",
+                       "05_notificaciones_y_roles.sql"):
             c.execute((RAIZ / "db" / "principal" / nombre).read_text(encoding="utf-8"))
     os.environ.update({
         "DB_HOST": HOST, "DB_PORT": PUERTO, "DB_NAME": BASE, "DB_USER": USUARIO,

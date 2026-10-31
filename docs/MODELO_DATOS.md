@@ -80,6 +80,16 @@ Archivo: `db/principal/04_ambitos_y_riego.sql` (idempotente; en un despliegue ex
 
 Cambios en tablas existentes: `nodo.ambito_id` (los nodos previos quedan en MANGLAR). Nuevos tipos de nodo (`RIEGO`), unidades (`ug/m3`, `V`, `L/min`), variables (`water_temperature`, `soil_temperature`, `co2`, `pm1`, `pm2_5`, `pm10`, `tank_level`, `pump_state`, `flow_rate`, `battery_voltage`, `battery_percent`), sus umbrales, módulos y permisos por rol. Todas las tablas nuevas llevan `estado`, `creado`, `actualizado` y el trigger de auditoría.
 
+## Notificaciones y rol vivero (migración 05)
+
+Archivo: `db/principal/05_notificaciones_y_roles.sql` (idempotente).
+
+| Cambio | Propósito |
+|---|---|
+| `usuario.notificar_alertas`, `usuario.notificar_nivel` | Preferencia de aviso por usuario (nivel mínimo `ADVERTENCIA` o `CRITICO`) |
+| `notificacion` | Bitácora de avisos por alerta, usuario y canal (`EMAIL` hoy; WhatsApp o SMS serían otro valor de `canal`). Situaciones: `PENDIENTE`, `ENVIADA`, `FALLIDA`, `OMITIDA` (antirrebote o SMTP sin configurar). Única por (alerta, usuario, canal) |
+| Rol `vivero` y módulo `notificaciones` | Opera el riego y atiende alertas sin administrar la infraestructura |
+
 ### Cómo agregar un módulo nuevo
 1. Migración SQL con sus tablas, su fila en `modulo` y permisos en `modulo_rol`.
 2. Router y/o lista de `Recurso` en la API, declarados en `app/registro.py`.

@@ -127,3 +127,45 @@ Los scripts de `db/` solo se ejecutan cuando el volumen de datos esta vacío. Pa
 - **Nginx no arranca:** falta el certificado (paso 4) o el puerto 80/443 esta ocupado.
 - **La API reinicia en bucle:** revise `docker compose logs api`; suele faltar una variable de `.env` o `JWT_SECRET` tiene menos de 32 caracteres.
 - **El certificado falla:** el DNS aun no propaga o el puerto 80 esta bloqueado en el firewall del proveedor.
+
+
+---
+
+## Actualizar un despliegue existente (panel SvelteKit, alertas por correo y rol vivero)
+
+Aplica a un VPS que ya funciona con la versión anterior (panel HTML dentro de la API).
+
+1. **Subir los cambios** desde su equipo: `git pull` del repositorio, `git push origin main`.
+2. **En el VPS** (como root), en la carpeta del proyecto (por defecto `/opt/iotmangrove`):
+   ```bash
+   cd /opt/iotmangrove
+   git pull
+   cp .env .env.respaldo-$(date +%F)          # respaldo antes de tocar nada
+   ```
+3. **Variables nuevas en `.env`** (opcionales; sin `SMTP_HOST` las alertas solo se ven en el panel):
+   ```
+   PUBLIC_URL=https://iotmangrove.info
+   ALERT_COOLDOWN_MIN=60
+   SMTP_HOST=smtp.su-proveedor.com
+   SMTP_PORT=587
+   SMTP_USER=...
+   SMTP_PASSWORD=...
+   SMTP_FROM=alertas@iotmangrove.info
+   SMTP_SECURITY=starttls
+   ```
+   Con un servicio transaccional (Brevo, Resend, SES, Mailgun) se publican en el DNS los registros SPF y DKIM que pida el proveedor.
+4. **Respaldar la base** y aplicar la migración 05:
+   ```bash
+   docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" > respaldo-$(date +%F).sql
+   bash scripts/migrar_db.sh
+   ```
+5. **Reconstruir y levantar**:
+   ```bash
+   docker compose up -d --build
+   docker compose ps          # api, api_aux, frontend, nginx, postgres y mysql en "Up"
+   ```
+6. **Comprobar**: `https://iotmangrove.info/api/salud`, iniciar sesión en el panel y, desde "Mi perfil", activar los avisos y enviar el correo de prueba.
+
+Si algo falla, volver atrás con `git checkout <commit-anterior>` y `docker compose up -d --build`; la migración 05 solo agrega columnas y tablas, no borra datos.
+
+El panel HTML antiguo sigue dentro de la imagen de la API pero Nginx ya no lo publica: `/` ahora lo atiende el contenedor `frontend`.

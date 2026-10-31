@@ -18,7 +18,8 @@ from fastapi import APIRouter
 from app.crud import Recurso
 from app.recursos import RECURSOS
 from app.recursos_riego import RECURSOS_RIEGO
-from app.routers import auth, datos, gateways, ingesta, riego
+from app.recursos_notificaciones import RECURSOS_NOTIFICACIONES
+from app.routers import auth, datos, gateways, ingesta, notificaciones, riego
 
 
 @dataclass
@@ -34,4 +35,5 @@ MODULOS: list[ModuloApi] = [
     ModuloApi("nucleo", routers=[auth.router, ingesta.router, datos.router, gateways.router],
               recursos=RECURSOS),
     ModuloApi("riego", routers=[riego.router], recursos=RECURSOS_RIEGO),
+    ModuloApi("notificaciones", routers=[notificaciones.router], recursos=RECURSOS_NOTIFICACIONES),
 ]

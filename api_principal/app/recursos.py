@@ -30,6 +30,8 @@ RECURSOS: list[Recurso] = [
             Campo("username", str, requerido=True, min_len=3, max_len=50),
             Campo("email", str, max_len=100),
             Campo("nombre_completo", str, max_len=120),
+            Campo("notificar_alertas", bool),
+            Campo("notificar_nivel", str, max_len=15, mayusculas=True),
             Campo("password", str, requerido=True, min_len=6, max_len=72, virtual=True),
         ],
         filtros=["rol_id"], proteger_propio=True, antes_guardar=_hash_usuario,

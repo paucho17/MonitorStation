@@ -5,11 +5,13 @@ Sistema telemático para el monitoreo ambiental de manglares: nodos LoRa (LilyGO
 ## Estructura
 ```
 iotmangrove/
-  docker-compose.yml        Despliegue completo (5 servicios)
+  docker-compose.yml        Despliegue completo (6 servicios)
+  docker-compose.local.yml  Desarrollo local con recarga en caliente (puertos publicados)
+  frontend/                 SvelteKit: panel web (22 componentes, servicios api_<tabla>, DataTables)
   .env.example              Plantilla de variables y secretos
-  db/principal/             PostgreSQL: esquema (16 tablas), semillas, datos de demostracion
+  db/principal/             PostgreSQL: esquema, semillas, migraciones (04 riego, 05 notificaciones y rol vivero)
   db/auxiliar/              MySQL: esquema (4 tablas) y base de conocimiento
-  api_principal/            FastAPI: JWT, CRUD, ingesta, dashboard + front-end estatico
+  api_principal/            FastAPI: JWT, CRUD, ingesta, dashboard, alertas con aviso por correo
     app/*.py y app/routers/*.py   Cada modulo tiene su documento .md en la misma carpeta
   api_auxiliar/             Express: CRUD y buscador para el chatbot
   nginx/                    Proxy inverso con HTTPS
@@ -30,6 +32,14 @@ nano .env                            # defina ADMIN_PASSWORD
 docker compose up -d --build
 ```
 Detalle completo en `docs/DESPLIEGUE.md`.
+
+## Desarrollo local con Docker
+```bash
+cp .env.example .env && bash scripts/generar_secretos.sh
+docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
+# Panel http://localhost:5173  |  API http://localhost:5000/docs
+```
+Detalle del panel en `docs/FRONTEND.md`.
 
 ## Desarrollo local sin Docker
 ```bash

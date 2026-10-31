@@ -1,0 +1,56 @@
+# Desarrollo local con Docker (sin Nginx ni HTTPS).
+#
+#   cp .env.example .env        # y complete las contrasenas (bash scripts/generar_secretos.sh)
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
+#
+# Servicios publicados en su equipo:
+#   http://localhost:5173   panel con recarga en caliente (SvelteKit)
+#   http://localhost:5000   API principal (Swagger en /docs)
+#   http://localhost:3000   API auxiliar (chatbot)
+#
+# Nginx y el frontend estatico quedan en el perfil "produccion", por lo que no
+# arrancan aqui. En el VPS se usa solo docker-compose.yml.
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  mysql:
+    ports:
+      - "127.0.0.1:3306:3306"
+
+  api:
+    ports:
+      - "5000:5000"
+    environment:
+      ALLOW_REGISTRATION: "true"
+
+  api_aux:
+    ports:
+      - "3000:3000"
+
+  frontend-dev:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: iot_frontend_dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      API_URL: http://api:5000
+      API_AUX_URL: http://api_aux:3000
+      VITE_USE_POLLING: "true"
+    depends_on:
+      - api
+      - api_aux
+    networks: [interna]
+
+  frontend:
+    profiles: ["produccion"]
+
+  nginx:
+    profiles: ["produccion"]

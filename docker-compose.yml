@@ -3,7 +3,8 @@
 # Servicios:
 #   postgres  : base de datos principal (PostgreSQL 15)
 #   mysql     : base de datos auxiliar (MySQL 8)
-#   api       : API principal (FastAPI)            -> /api/*, /docs y front-end
+#   api       : API principal (FastAPI)            -> /api/*, /docs
+#   frontend  : panel web (SvelteKit + Nginx)      -> /
 #   api_aux   : API auxiliar (Express + MySQL)     -> /aux/*
 #   nginx     : proxy inverso con HTTPS (Let's Encrypt)
 #
@@ -72,6 +73,14 @@ services:
       GATEWAY_API_KEY: ${GATEWAY_API_KEY}
       ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      PUBLIC_URL: ${PUBLIC_URL:-https://iotmangrove.info}
+      ALERT_COOLDOWN_MIN: ${ALERT_COOLDOWN_MIN:-60}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-alertas@iotmangrove.info}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
     depends_on:
       postgres:
         condition: service_healthy
@@ -95,6 +104,12 @@ services:
         condition: service_healthy
     networks: [interna]
 
+  frontend:
+    build: ./frontend
+    container_name: iot_frontend
+    restart: always
+    networks: [interna]
+
   nginx:
     image: nginx:1.27-alpine
     container_name: iot_nginx
@@ -109,6 +124,7 @@ services:
     depends_on:
       - api
       - api_aux
+      - frontend
     networks: [interna]
 
 networks:

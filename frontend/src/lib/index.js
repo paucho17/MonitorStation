@@ -1,0 +1,23 @@
+// Barrel de componentes: `import { Button, Card } from '#lib';`
+export { default as Alert } from './components/Alert.svelte';
+export { default as Badge } from './components/Badge.svelte';
+export { default as Button } from './components/Button.svelte';
+export { default as Card } from './components/Card.svelte';
+export { default as Checkbox } from './components/Checkbox.svelte';
+export { default as Chatbot } from './components/Chatbot.svelte';
+export { default as Container } from './components/Container.svelte';
+export { default as Footer } from './components/Footer.svelte';
+export { default as Grid } from './components/Grid.svelte';
+export { default as Header } from './components/Header.svelte';
+export { default as Hero } from './components/Hero.svelte';
+export { default as Input } from './components/Input.svelte';
+export { default as Medidor } from './components/Medidor.svelte';
+export { default as Modal } from './components/Modal.svelte';
+export { default as Navbar } from './components/Navbar.svelte';
+export { default as Section } from './components/Section.svelte';
+export { default as Select } from './components/Select.svelte';
+export { default as Sidebar } from './components/Sidebar.svelte';
+export { default as Spinner } from './components/Spinner.svelte';
+export { default as TablaDatos } from './components/TablaDatos.svelte';
+export { default as Tabs } from './components/Tabs.svelte';
+export { default as FormularioCrud } from './components/FormularioCrud.svelte';

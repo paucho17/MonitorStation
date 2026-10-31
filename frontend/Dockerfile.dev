@@ -1,0 +1,11 @@
+# syntax=docker/dockerfile:1
+# Imagen de desarrollo local: servidor Vite con recarga en caliente (HMR).
+# Las peticiones /api y /aux se reenvian a los contenedores api y api_aux
+# (variables API_URL y API_AUX_URL definidas en docker-compose.local.yml).
+FROM node:22-alpine
+WORKDIR /app
+COPY package.json package-lock.json .npmrc ./
+RUN npm ci
+COPY . .
+EXPOSE 5173
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]

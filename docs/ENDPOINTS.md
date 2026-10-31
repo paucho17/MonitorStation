@@ -32,6 +32,15 @@ La documentación interactiva de la API principal esta en `/docs` (Swagger). Las
 
 Detalle y reglas de seguridad en `api_principal/app/routers/riego.md`.
 
+### Notificaciones de alertas
+| Método | Ruta | Acceso | Descripción |
+|---|---|---|---|
+| GET | /api/notificaciones/preferencias | JWT | Aviso por correo del usuario actual |
+| PUT | /api/notificaciones/preferencias | JWT | Activa o desactiva los avisos y fija el nivel mínimo (`ADVERTENCIA` o `CRITICO`) |
+| POST | /api/notificaciones/prueba | JWT, `notificaciones` (crear) | Envía un correo de prueba al usuario actual |
+
+La bitácora de avisos (enviada, fallida u omitida por antirrebote) está en el recurso `notificaciones` (solo lectura). Configuración SMTP en `.env` (`SMTP_*`, `ALERT_COOLDOWN_MIN`).
+
 ### CRUD (todos con eliminación lógica)
 Cada recurso ofrece: `GET /api/<r>` (lista), `GET /api/<r>/{id}`, `POST /api/<r>`, `PUT /api/<r>/{id}`, `DELETE /api/<r>/{id}` (pone `estado = false`) y `POST /api/<r>/{id}/restaurar`. La lista acepta `incluir_inactivos=true`, `limite` y `desplazamiento`.
 
@@ -59,12 +68,14 @@ Cada recurso ofrece: `GET /api/<r>` (lista), `GET /api/<r>/{id}`, `POST /api/<r>
 | mediciones | mediciones | lectura_id, variable_id | Solo lectura y eliminación lógica |
 | umbrales | umbrales | variable_id, nivel | |
 | alertas | alertas | medicion_id, umbral_id, atendida | `PUT` solo para marcar `atendida` |
+| notificaciones | notificaciones | alerta_id, usuario_id, canal, situacion | Solo lectura |
 
 ### Roles por defecto
 | Rol | Alcance |
 |---|---|
 | admin | Acceso total a todos los módulos |
 | operador | CRUD de zonas, nodos, sensores y umbrales; atiende alertas; lee catalogos y datos |
+| vivero | Opera riego y programas, atiende alertas, lee dashboard, historial y catálogos |
 | consulta | Solo lectura de dashboard, historial, alertas y catalogos públicos |
 
 Los permisos se editan en la tabla `modulo_rol` (recurso `permisos`).
