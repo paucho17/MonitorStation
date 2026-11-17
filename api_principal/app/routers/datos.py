@@ -31,8 +31,8 @@ def dashboard(
     db: psycopg.Connection = Depends(get_db),
 ):
     """Devuelve la ultima medicion de cada variable en cada nodo, la ultima
-    lectura recibida, la ultima posicion GPS conocida y el numero de
-    alertas pendientes."""
+    lectura recibida, la ultima posicion GPS conocida, el numero de
+    alertas pendientes y los puntos de referencia GPS de la ultima campana."""
     cond_ambito, par_ambito = _filtro_ambito(ambito)
     extra = f"AND {cond_ambito}" if cond_ambito else ""
     variables = db.execute(
@@ -80,11 +80,21 @@ def dashboard(
         par_ambito,
     ).fetchone()["n"]
 
+    # Puntos de referencia levantados en campo (ultima campana registrada)
+    referencias = db.execute(
+        """SELECT nombre, linea, descripcion, latitud, longitud, campana
+           FROM punto_referencia
+           WHERE estado = TRUE
+             AND campana = (SELECT max(campana) FROM punto_referencia WHERE estado = TRUE)
+           ORDER BY capturado_en NULLS LAST, id"""
+    ).fetchall()
+
     return {
         "ultima_lectura": ultima,
         "ultima_posicion": posicion,
         "alertas_pendientes": pendientes,
         "variables": variables,
+        "referencias": referencias,
     }
 
 

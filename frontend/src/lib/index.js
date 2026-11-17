@@ -11,6 +11,7 @@ export { default as Grid } from './components/Grid.svelte';
 export { default as Header } from './components/Header.svelte';
 export { default as Hero } from './components/Hero.svelte';
 export { default as Input } from './components/Input.svelte';
+export { default as MapaZona } from './components/MapaZona.svelte';
 export { default as Medidor } from './components/Medidor.svelte';
 export { default as Modal } from './components/Modal.svelte';
 export { default as Navbar } from './components/Navbar.svelte';
