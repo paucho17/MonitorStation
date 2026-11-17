@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { api_dashboard } from '#lib/servicios/datos.js';
 	import { sesion } from '#lib/estado/sesion.svelte.js';
-	import { Section, Grid, Medidor, Tabs, Alert, Badge, Spinner, Card } from '#lib';
+	import { Section, Grid, Medidor, Tabs, Alert, Badge, Spinner, Card, MapaZona } from '#lib';
 
 	const AMBITOS = [
 		{ valor: '', texto: 'Todos' },
@@ -81,6 +81,10 @@
 				{:else}Sin posicion{/if}
 			</Card>
 		</Grid>
+
+		<Section title="Mapa de la zona" description="Puntos de referencia GPS y ultima posicion de los nodos.">
+			<MapaZona referencias={datos.referencias ?? []} posicion={posicion} />
+		</Section>
 
 		{#each porNodo as n (n.nodo)}
 			<Section title={`Nodo ${n.nodo}`} description={`${n.nombre ?? ''} · ${n.ambito}`}>

@@ -1,0 +1,321 @@
+diff --git a/api_principal/app/routers/datos.py b/api_principal/app/routers/datos.py
+index ea0dbec..3aefe6a 100644
+--- a/api_principal/app/routers/datos.py
++++ b/api_principal/app/routers/datos.py
+@@ -31,8 +31,8 @@ def dashboard(
+     db: psycopg.Connection = Depends(get_db),
+ ):
+     """Devuelve la ultima medicion de cada variable en cada nodo, la ultima
+-    lectura recibida, la ultima posicion GPS conocida y el numero de
+-    alertas pendientes."""
++    lectura recibida, la ultima posicion GPS conocida, el numero de
++    alertas pendientes y los puntos de referencia GPS de la ultima campana."""
+     cond_ambito, par_ambito = _filtro_ambito(ambito)
+     extra = f"AND {cond_ambito}" if cond_ambito else ""
+     variables = db.execute(
+@@ -80,11 +80,21 @@ def dashboard(
+         par_ambito,
+     ).fetchone()["n"]
+ 
++    # Puntos de referencia levantados en campo (ultima campana registrada)
++    referencias = db.execute(
++        """SELECT nombre, linea, descripcion, latitud, longitud, campana
++           FROM punto_referencia
++           WHERE estado = TRUE
++             AND campana = (SELECT max(campana) FROM punto_referencia WHERE estado = TRUE)
++           ORDER BY capturado_en NULLS LAST, id"""
++    ).fetchall()
++
+     return {
+         "ultima_lectura": ultima,
+         "ultima_posicion": posicion,
+         "alertas_pendientes": pendientes,
+         "variables": variables,
++        "referencias": referencias,
+     }
+ 
+ 
+diff --git a/db/principal/06_puntos_referencia.sql b/db/principal/06_puntos_referencia.sql
+new file mode 100644
+index 0000000..b098d4a
+--- /dev/null
++++ b/db/principal/06_puntos_referencia.sql
+@@ -0,0 +1,67 @@
++-- =====================================================================
++-- IoT-Mangrove: migracion 06, puntos de referencia GPS
++--
++--   * punto_referencia : waypoints levantados en campo con GPS de mano
++--                        (Garmin GPSMAP 78s) que el panel dibuja sobre el
++--                        mapa. Una campana agrupa los puntos de una salida.
++--
++-- Carga la campana del 8 de noviembre de 2026 (Ciénaga de Mallorquín,
++-- Asoplaya): punto 304 (muelle) y puntos 1 a 20 en cinco lineas de muestreo.
++-- La elevacion del GPS no se almacena por no ser confiable bajo dosel.
++--
++-- Idempotente: puede ejecutarse varias veces (scripts/migrar_db.sh).
++-- Requiere las migraciones 01 a 05.
++-- =====================================================================
++
++BEGIN;
++
++CREATE TABLE IF NOT EXISTS punto_referencia (
++    id           SERIAL PRIMARY KEY,
++    campana      DATE             NOT NULL,
++    nombre       VARCHAR(20)      NOT NULL,
++    linea        VARCHAR(20),
++    descripcion  VARCHAR(255),
++    latitud      DOUBLE PRECISION NOT NULL CHECK (latitud  BETWEEN -90  AND 90),
++    longitud     DOUBLE PRECISION NOT NULL CHECK (longitud BETWEEN -180 AND 180),
++    capturado_en TIMESTAMPTZ,
++    estado       BOOLEAN          NOT NULL DEFAULT TRUE,
++    creado       TIMESTAMPTZ      NOT NULL DEFAULT now(),
++    actualizado  TIMESTAMPTZ      NOT NULL DEFAULT now(),
++    UNIQUE (campana, nombre)
++);
++
++DO $$
++BEGIN
++    IF NOT EXISTS (
++        SELECT 1 FROM pg_trigger WHERE tgname = 'trg_actualizado' AND tgrelid = 'punto_referencia'::regclass
++    ) THEN
++        CREATE TRIGGER trg_actualizado BEFORE UPDATE ON punto_referencia
++        FOR EACH ROW EXECUTE FUNCTION fn_set_actualizado();
++    END IF;
++END $$;
++
++INSERT INTO punto_referencia (campana, nombre, linea, descripcion, latitud, longitud, capturado_en) VALUES
++    ('2026-11-08', '304', NULL, 'Muelle de Asoplaya (referencia general)', 11.035785, -74.859928, '2026-11-08T12:32:21Z'),
++    ('2026-11-08', '1er', 'Linea 1', NULL, 11.051339, -74.853287, '2026-11-08T13:41:12Z'),
++    ('2026-11-08', '2do', 'Linea 1', NULL, 11.051381, -74.853278, '2026-11-08T13:43:13Z'),
++    ('2026-11-08', '3er', 'Linea 1', NULL, 11.051428, -74.853271, '2026-11-08T13:45:06Z'),
++    ('2026-11-08', '4to', 'Linea 1', NULL, 11.051468, -74.853258, '2026-11-08T13:49:33Z'),
++    ('2026-11-08', '5to', 'Linea 2', NULL, 11.051292, -74.853279, '2026-11-08T13:52:31Z'),
++    ('2026-11-08', '6to', 'Linea 2', NULL, 11.051250, -74.853287, '2026-11-08T13:53:29Z'),
++    ('2026-11-08', '7mo', 'Linea 2', NULL, 11.051215, -74.853313, '2026-11-08T13:55:27Z'),
++    ('2026-11-08', '8vo', 'Linea 2', NULL, 11.051170, -74.853327, '2026-11-08T13:56:44Z'),
++    ('2026-11-08', '9vo', NULL, NULL, 11.051134, -74.853348, '2026-11-08T13:57:51Z'),
++    ('2026-11-08', '10mo', 'Linea 3', NULL, 11.051158, -74.853387, '2026-11-08T14:01:23Z'),
++    ('2026-11-08', '11', 'Linea 3', NULL, 11.051164, -74.853426, '2026-11-08T14:06:03Z'),
++    ('2026-11-08', '12', 'Linea 3', NULL, 11.051163, -74.853472, '2026-11-08T14:07:10Z'),
++    ('2026-11-08', '13', 'Linea 4', NULL, 11.051121, -74.853465, '2026-11-08T14:08:35Z'),
++    ('2026-11-08', '14', 'Linea 4', NULL, 11.051082, -74.853501, '2026-11-08T14:10:18Z'),
++    ('2026-11-08', '15', 'Linea 4', NULL, 11.051477, -74.853305, '2026-11-08T14:22:54Z'),
++    ('2026-11-08', '16', 'Linea 4', NULL, 11.051498, -74.853349, '2026-11-08T14:23:48Z'),
++    ('2026-11-08', '17', 'Linea 5', NULL, 11.051504, -74.853393, '2026-11-08T14:24:53Z'),
++    ('2026-11-08', '18', 'Linea 5', NULL, 11.051509, -74.853437, '2026-11-08T14:25:45Z'),
++    ('2026-11-08', '19', 'Linea 5', NULL, 11.051553, -74.853422, '2026-11-08T14:27:53Z'),
++    ('2026-11-08', '20', 'Linea 5', NULL, 11.051599, -74.853418, '2026-11-08T14:28:38Z')
++ON CONFLICT (campana, nombre) DO NOTHING;
++
++COMMIT;
+diff --git a/frontend/package-lock.json b/frontend/package-lock.json
+index 74a9e3d..63df4ec 100644
+--- a/frontend/package-lock.json
++++ b/frontend/package-lock.json
+@@ -8,7 +8,8 @@
+ 			"name": "iotmangrove-frontend",
+ 			"version": "1.0.0",
+ 			"dependencies": {
+-				"datatables.net-dt": "^3.1.5"
++				"datatables.net-dt": "^3.1.5",
++				"leaflet": "^1.9.4"
+ 			},
+ 			"devDependencies": {
+ 				"@sveltejs/adapter-static": "^4.0.1",
+@@ -606,6 +607,12 @@
+ 				"@types/estree": "^1.0.6"
+ 			}
+ 		},
++		"node_modules/leaflet": {
++			"version": "1.9.4",
++			"resolved": "https://registry.npmjs.org/leaflet/-/leaflet-1.9.4.tgz",
++			"integrity": "sha512-nxS1ynzJOmOlHp+iL3FyWqK89GtNL8U8rvlMOsQdTTssxZwCXh8N2NB3GDQOL+YR3XnWyZAxwQixURb+FA74PA==",
++			"license": "BSD-2-Clause"
++		},
+ 		"node_modules/lightningcss": {
+ 			"version": "1.33.0",
+ 			"resolved": "https://registry.npmjs.org/lightningcss/-/lightningcss-1.33.0.tgz",
+diff --git a/frontend/package.json b/frontend/package.json
+index 2f15966..98b3dfb 100644
+--- a/frontend/package.json
++++ b/frontend/package.json
+@@ -17,7 +17,8 @@
+ 		"vite": "^8.3.0"
+ 	},
+ 	"dependencies": {
+-		"datatables.net-dt": "^3.1.5"
++		"datatables.net-dt": "^3.1.5",
++		"leaflet": "^1.9.4"
+ 	},
+ 	"imports": {
+ 		"#lib": "./src/lib/index.js",
+diff --git a/frontend/src/lib/components/MapaZona.svelte b/frontend/src/lib/components/MapaZona.svelte
+new file mode 100644
+index 0000000..651de06
+--- /dev/null
++++ b/frontend/src/lib/components/MapaZona.svelte
+@@ -0,0 +1,107 @@
++<script>
++	/**
++	 * Mapa de la zona de monitoreo (Leaflet).
++	 *
++	 * Capas base conmutables: OpenTopoMap (topografica, por defecto) y
++	 * OpenStreetMap. Dibuja los puntos de referencia GPS agrupados por linea
++	 * de muestreo y la ultima posicion reportada por un nodo.
++	 *
++	 * @prop {Array<{nombre:string, linea?:string, descripcion?:string, latitud:number, longitud:number}>} referencias
++	 * @prop {{nodo:string, latitud:number, longitud:number}|null} posicion
++	 */
++	import { onMount } from 'svelte';
++	import L from 'leaflet';
++	import 'leaflet/dist/leaflet.css';
++
++	let { referencias = [], posicion = null, alto = '28rem' } = $props();
++
++	let contenedor;
++	let mapa;
++	let capaPuntos;
++	let encuadrado = false; // el encuadre automatico ocurre una sola vez, para respetar el zoom del usuario
++
++	// Un color por linea de muestreo; los puntos sin linea usan el neutro.
++	const COLORES = { 'Linea 1': '#1b9e77', 'Linea 2': '#d95f02', 'Linea 3': '#7570b3', 'Linea 4': '#e7298a', 'Linea 5': '#66a61e' };
++	const NEUTRO = '#555555';
++
++	function dibujar() {
++		if (!mapa) return;
++		capaPuntos.clearLayers();
++		const encuadre = [];
++
++		for (const r of referencias) {
++			const pos = [Number(r.latitud), Number(r.longitud)];
++			const esMuelle = !r.linea;
++			L.circleMarker(pos, {
++				radius: esMuelle ? 8 : 6,
++				color: '#ffffff',
++				weight: 1.5,
++				fillColor: COLORES[r.linea] ?? NEUTRO,
++				fillOpacity: 0.95
++			})
++				.bindTooltip(`${r.nombre}${r.linea ? ' · ' + r.linea : ''}`)
++				.bindPopup(
++					`<strong>Punto ${r.nombre}</strong><br>${r.linea ?? ''}${r.descripcion ? '<br>' + r.descripcion : ''}` +
++						`<br><small>${pos[0].toFixed(6)}, ${pos[1].toFixed(6)}</small>`
++				)
++				.addTo(capaPuntos);
++			// El encuadre ignora puntos aislados (p. ej. el muelle) para no alejar el zoom
++			if (r.linea) encuadre.push(pos);
++		}
++
++		if (posicion) {
++			const pos = [Number(posicion.latitud), Number(posicion.longitud)];
++			L.circleMarker(pos, { radius: 9, color: '#c0392b', weight: 3, fillColor: '#ffffff', fillOpacity: 0.6 })
++				.bindTooltip(`Nodo ${posicion.nodo}`)
++				.addTo(capaPuntos);
++			encuadre.push(pos);
++		}
++
++		if (encuadre.length && !encuadrado) {
++			encuadrado = true;
++			mapa.fitBounds(L.latLngBounds(encuadre), { padding: [30, 30], maxZoom: 19 });
++		}
++	}
++
++	onMount(() => {
++		const topo = L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', {
++			maxZoom: 17,
++			attribution:
++				'Mapa: &copy; <a href="https://opentopomap.org" target="_blank" rel="noopener noreferrer">OpenTopoMap</a> ' +
++				'(<a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener noreferrer">CC-BY-SA</a>), ' +
++				'datos &copy; colaboradores de <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>'
++		});
++		const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
++			maxZoom: 19,
++			attribution:
++				'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>'
++		});
++
++		// Centro inicial: Cienaga de Mallorquin; fitBounds lo reemplaza si hay puntos
++		mapa = L.map(contenedor, { center: [11.0515, -74.8534], zoom: 17, layers: [topo] });
++		L.control.layers({ OpenTopoMap: topo, OpenStreetMap: osm }).addTo(mapa);
++		L.control.scale({ imperial: false }).addTo(mapa);
++		capaPuntos = L.layerGroup().addTo(mapa);
++		dibujar();
++
++		return () => mapa.remove();
++	});
++
++	// Redibuja cuando el panel refresca los datos
++	$effect(() => {
++		referencias;
++		posicion;
++		dibujar();
++	});
++</script>
++
++<div bind:this={contenedor} class="mapa" style:height={alto} role="img" aria-label="Mapa de la zona de monitoreo"></div>
++
++<style>
++	.mapa {
++		width: 100%;
++		border-radius: 0.5rem;
++		border: 1px solid var(--borde, #d0d7de);
++		z-index: 0;
++	}
++</style>
+diff --git a/frontend/src/lib/index.js b/frontend/src/lib/index.js
+index ed01e87..48246ec 100644
+--- a/frontend/src/lib/index.js
++++ b/frontend/src/lib/index.js
+@@ -11,6 +11,7 @@ export { default as Grid } from './components/Grid.svelte';
+ export { default as Header } from './components/Header.svelte';
+ export { default as Hero } from './components/Hero.svelte';
+ export { default as Input } from './components/Input.svelte';
++export { default as MapaZona } from './components/MapaZona.svelte';
+ export { default as Medidor } from './components/Medidor.svelte';
+ export { default as Modal } from './components/Modal.svelte';
+ export { default as Navbar } from './components/Navbar.svelte';
+diff --git a/frontend/src/routes/(app)/+page.svelte b/frontend/src/routes/(app)/+page.svelte
+index b5b1d3b..e624362 100644
+--- a/frontend/src/routes/(app)/+page.svelte
++++ b/frontend/src/routes/(app)/+page.svelte
+@@ -2,7 +2,7 @@
+ 	import { onMount } from 'svelte';
+ 	import { api_dashboard } from '#lib/servicios/datos.js';
+ 	import { sesion } from '#lib/estado/sesion.svelte.js';
+-	import { Section, Grid, Medidor, Tabs, Alert, Badge, Spinner, Card } from '#lib';
++	import { Section, Grid, Medidor, Tabs, Alert, Badge, Spinner, Card, MapaZona } from '#lib';
+ 
+ 	const AMBITOS = [
+ 		{ valor: '', texto: 'Todos' },
+@@ -82,6 +82,10 @@
+ 			</Card>
+ 		</Grid>
+ 
++		<Section title="Mapa de la zona" description="Puntos de referencia GPS y ultima posicion de los nodos.">
++			<MapaZona referencias={datos.referencias ?? []} posicion={posicion} />
++		</Section>
++
+ 		{#each porNodo as n (n.nodo)}
+ 			<Section title={`Nodo ${n.nodo}`} description={`${n.nombre ?? ''} · ${n.ambito}`}>
+ 				<Grid min="13rem">
+diff --git a/nginx/iotmangrove.conf b/nginx/iotmangrove.conf
+index 8a56f48..42baec9 100644
+--- a/nginx/iotmangrove.conf
++++ b/nginx/iotmangrove.conf
+@@ -84,13 +84,14 @@ server {
+ 
+     # Panel web (SvelteKit). Las cabeceras se repiten porque add_header en un
+     # location reemplaza las del server. Content-Security-Policy limita el
+-    # origen de scripts, estilos y conexiones del panel.
++    # origen de scripts, estilos y conexiones del panel. img-src admite los
++    # servidores de teselas del mapa (OpenStreetMap y OpenTopoMap).
+     location / {
+         add_header Strict-Transport-Security "max-age=31536000" always;
+         add_header X-Content-Type-Options "nosniff" always;
+         add_header X-Frame-Options "SAMEORIGIN" always;
+         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+-        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'self'" always;
++        add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://tile.openstreetmap.org https://tile.opentopomap.org https://*.tile.opentopomap.org; connect-src 'self'; frame-ancestors 'self'" always;
+         proxy_pass http://frontend:80;
+     }
+ }
